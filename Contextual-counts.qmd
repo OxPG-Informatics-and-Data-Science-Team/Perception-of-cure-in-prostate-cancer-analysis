@@ -1,0 +1,124 @@
+---
+title: "Contextual term counts"
+author: "Andrew"
+format: html
+editor: visual
+---
+
+This Quarto R document is used to generate document counts and contextual word counts for each keyword and data source
+
+## Import libraries
+
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+## Instructions before running R code
+
+1.  Download relevant data for each keyword from Quid Discover and save the csv files into a folder. Please ensure that each keyword dataset is saved in a separate folder (i.e. save all the files related to 'cure' in a new folder called 'cure' etc...)
+
+2.  Add a prefix to the filename of each csv file in the format of 'source_prostate\_(default-filename-from-Quid)'. 'source' should be either 'social', 'sermo', 'medline', or 'overton'. For example, the updated cure social media data csv file could be named 'social_prostate\_\[QuidSocial\] - Janssen - Cure - 2023-04-16 14_45_58 (English) \_ 3015 Social Medias.csv'
+
+3.  In the R code below, specify the full path to the folder containing the Quid Discover results with the 'folder_path' variable and specify name of the keyword being analysed with the 'key_term' variable
+
+4.  Run the code chunk
+
+5.  R creates a 'summary' Excel file in the source data folder for each Quid file analysed. Each output file contains **two excel tabs**:
+
+    -   'context' tab gives you the contextual term counts and percentages for each data source (social, sermo, medline, or overton)
+
+    -   'context_raw' tab contains the raw data from the Quid discovery export but has columns indicating whether a contextual term was identified in the document ('1' or '0')
+
+6.  Repeat steps 3 and 4 with the other folder paths and keywords
+
+## R code
+
+```{r}
+
+# Provide full path to the folder containing your Quid Discovery results to be analyzed
+folder_path <- "path/to/folder"
+
+# Specify the appropriate keyword that is being analysed
+key_term <- 'remission'
+
+# List all the csv files in the folder
+data_list <- list.files(folder_path, pattern = "*.csv") 
+
+# Loop through all the files in the folder and perform the counts
+for (i in seq_along(data_list)){
+  quid_data <- read_csv(paste0(folder_path,"/", data_list[i])) %>%
+    # Filter for only documents that mention 'prostate' (double check to ensure nothing missed by SMEs)
+  mutate(body_lower = str_to_lower(Body)) %>%
+    filter(str_detect(body_lower, "prostate"))
+  
+  # Get prefix of file (to be used as name for tab)
+  file_prefix = str_match(data_list[i], "^([a-z]+_[a-z]+)_")[,2]
+  
+  # cluster counts (not used in final analysis)
+  cluster_counts <- quid_data %>%
+    count(`Clusters 0`, name = "count") %>%
+    arrange(desc(count)) %>%
+    rename(cluster_name = "Clusters 0")
+  
+  # Get total number of snippets analysed by Netbase Quid
+  cluster_total <- sum(cluster_counts$count, na.rm = T)
+
+  # Label whether contextual words are present in each document. If they are then label '1' otherwise '0'
+  contextual_words <- quid_data %>%
+  mutate(
+    PSA = case_when(str_detect(body_lower, "\\bpsa|\\bprostate specific antigen") ~ 1, TRUE ~ 0),
+    Gleason = case_when(str_detect(body_lower, "\\bgleason\\b") ~ 1, TRUE ~ 0),
+    `Canc cell` = case_when(str_detect(body_lower, "\\bcancerous cell") ~ 1, TRUE ~ 0),
+    Surgery = case_when(str_detect(body_lower, "\\bsurgical\\b|\\bsurgery\\b|\\bprostatectomy\\b") ~ 1, TRUE ~ 0),
+    `Dis man` = case_when(str_detect(body_lower, "\\bdisease manifestation") ~ 1, TRUE ~ 0),
+    Biochem = case_when(str_detect(body_lower, "\\bbiochemical\\b") ~ 1, TRUE ~ 0),
+    Palpable = case_when(str_detect(body_lower, "\\bpalpable\\b") ~ 1, TRUE ~ 0),
+    `Rectal exam` = case_when(str_detect(body_lower, "\\brectal exam") ~ 1, TRUE ~ 0),
+    Nonmetasta = case_when(str_detect(body_lower, "\\bnonmetastatic\\b|\\bnon-metastatic\\b") ~ 1, TRUE ~ 0),
+    Resectable = case_when(str_detect(body_lower, "\\bresectable\\b") ~ 1, TRUE ~ 0),
+    Expectant = case_when(str_detect(body_lower, "\\bexpectant") ~ 1, TRUE ~ 0),
+    Indolent = case_when(str_detect(body_lower, "\\bindolent") ~ 1, TRUE ~ 0),
+    localized = case_when(str_detect(body_lower, "localized|localised") ~ 1, TRUE ~ 0),
+    locally_advanced = case_when(str_detect(body_lower, "locally advanced|locally-advanced") ~ 1, TRUE ~ 0),
+    nmCRPC = case_when(str_detect(body_lower, "nonmetastatic castration-resistant prostate cancer|non-metastatic castration-resistant prostate cancer|non-metastatic crpc|nmcrpc") ~ 1, TRUE ~ 0),
+    nmCSPC = case_when(str_detect(body_lower, "nonmetastatic castration-sensitive prostate cancer|non-metastatic castration-sensitive prostate cancer|non-metastatic cspc|nmcspc") ~ 1, TRUE ~ 0),
+    mCRPC = case_when(str_detect(body_lower, "metastatic castration-resistant prostate cancer|metastatic crpc|mcrpc") ~ 1, TRUE ~ 0),
+    mCSPC = case_when(str_detect(body_lower, "metastatic castration-sensitive prostate cancer|metastatic cspc|mcspc") ~ 1, TRUE ~ 0),
+    CRPC = case_when(str_detect(body_lower, "crpc") ~ 1, TRUE ~ 0),
+    CSPC = case_when(str_detect(body_lower, "cspc") ~ 1, TRUE ~ 0),
+    stage_III = case_when(str_detect(body_lower, "stage iii|stage 3") ~ 1, TRUE ~ 0),
+    stage_IIIA = case_when(str_detect(body_lower, "stage iiia|stage 3a") ~ 1, TRUE ~ 0),
+    stage_IIIB = case_when(str_detect(body_lower, "stage iiib|stage 3b") ~ 1, TRUE ~ 0),
+    stage_IIIC = case_when(str_detect(body_lower, "stage iiic|stage 3c") ~ 1, TRUE ~ 0),
+    score_4plus3 = case_when(str_detect(body_lower, "\\b4 \\+ 3\\b") ~ 1, TRUE ~ 0),
+    score_3plus4 = case_when(str_detect(body_lower, "\\b3 \\+ 4\\b") ~ 1, TRUE ~ 0),
+    score_4plus4 = case_when(str_detect(body_lower, "\\b4 \\+ 4\\b") ~ 1, TRUE ~ 0),
+    score_4_3 = case_when(str_detect(body_lower, "\\b4 3\\b") ~ 1, TRUE ~ 0), 
+    score_3_4 = case_when(str_detect(body_lower, "\\b3 4\\b") ~ 1, TRUE ~ 0),
+    score_4_4 = case_when(str_detect(body_lower, "\\b4 4\\b") ~ 1, TRUE ~ 0)
+    ) 
+
+  # Get counts of contextual words and percentages as well
+  contextual_word_counts <- contextual_words %>%
+    summarise(across(PSA:score_4_4, ~ sum(., na.rm = TRUE))) %>%
+    pivot_longer(cols=everything(),
+                    names_to='contextual_word',
+                    values_to='counts') %>%
+    mutate(percentage_snippet = counts/cluster_total*100,
+           cluster_total_snippet = cluster_total) 
+    
+  
+  # Get dataframes into a list, give each tab corresponding name and export as an excel file
+  list_of_processed_df <- list(contextual_words, contextual_word_counts)
+  names(list_of_processed_df) <-c(paste0(file_prefix,"_context_raw"),paste0(file_prefix,"_context"))
+  openxlsx::write.xlsx(list_of_processed_df, file = paste0(folder_path,"/", file_prefix,"_",key_term,"_summary.xlsx"))
+  
+  print(paste("File:", file_prefix, "analyzed"))
+}
+
+```
+
+```{r}
+sessionInfo()
+```

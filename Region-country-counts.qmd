@@ -1,0 +1,101 @@
+---
+title: "Country and region counts"
+author: "Andrew"
+format: html
+editor: visual
+---
+
+This Quarto R document is used to generate country and region counts for each keyword from Quid Monitor social media data.
+
+## Import libraries
+
+```{r}
+library(tidyverse)
+library(janitor)
+# 'countrycode can be used to assign country to a region
+library(countrycode)
+```
+
+## Instructions before running R code
+
+1.  Create a new folder and add the appropriate excel file containing the geographical social media data for the keyword of interest from Quid Monitor (download using the 'Geographies' and 'Geo Regions' tabs on the Quid platform)
+
+2.  Rename the excel file in the format of 'keyword_prostate_social_geo' (e.g. 'cure_prostate_social_geo.xlsx')
+
+3.  Repeat steps 1 and 2 for all keywords of interest (e.g. 'cure', 'curative intent', 'remission' etc...)
+
+4.  In the R code below, specify the full path to the folder containing the Quid Monitor results with the 'folder_path' variable
+
+5.  Run both code chunks. The R code saves two excel files (prostate_country_count.xlsx and prostate_region_count.xlsx) in the folder specified earlier. The files contain the total number of social media posts for each keyword grouped according to country or region
+
+## Data preprocessing
+
+```{r}
+# Provide full path to the folder containing your Quid Monitor social media geo data 
+folder_path <- "path/to/folder"
+
+# Empty dataframe that is propogated by the output of the for loop (each keyword is analyzed)
+overall_data = data.frame()
+
+for (i in list.files(paste0(folder_path), pattern = "_social_geo.xlsx")){
+  
+  data <- readxl::read_xlsx(paste0(folder_path,"/",i)) %>%
+    clean_names() %>%
+    # Remmpve extra rows that aren't used for analysis
+    filter(!is.na(posts)) %>%
+    # Remove the total column
+    filter(geolocation != "Total") %>%
+    # Extract key term name to be added to each dataframe so we can track the counts
+    mutate(keyterm = str_match(i, "(.+_social)_geo.xlsx")[,2]) %>%
+    rename(source_country = geolocation, count = posts) %>%
+    # Select only the most appropriate columns
+    select(source_country, count, keyterm)
+  
+    # Append all data into the overall dataframe
+  overall_data <- rbind(overall_data,data)
+  }
+
+```
+
+## Country/region counts
+
+```{r}
+# Add region data based on country name using countrycode package 
+overall_data$region <- countrycode(sourcevar = overall_data$source_country,
+                            origin = "country.name",
+                            destination = "region")
+
+# Manually correct a few entries and export country counts as Excel file
+overall_data <- overall_data %>%
+  mutate(region = case_when(source_country == "British Indian Ocean Territory" ~ "British Indian Ocean Territory",
+                            source_country == "Not available" ~ "Not available",
+                            TRUE ~ region)) %>%
+  rowwise() %>%
+  mutate(keyword = str_match(keyterm, paste0("^(.*)_prostate_(.*)$"))[2],
+         source = str_match(keyterm, paste0("^(.*)_prostate_(.*)$"))[3]) 
+
+writexl::write_xlsx(overall_data %>% select(-keyterm), paste0(folder_path, "/", "prostate_country_count.xlsx"))
+
+# Get counts when grouped by regions
+overall_data_regions <- overall_data %>%
+  group_by(keyterm, region) %>%
+  summarise(count = sum(count)) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(keyword = str_match(keyterm, paste0("^(.*)_prostate_(.*)$"))[2],
+         source = str_match(keyterm, paste0("^(.*)_prostate_(.*)$"))[3]) %>%
+  spread(region, count) %>%
+  mutate(across(`British Indian Ocean Territory`:`Sub-Saharan Africa`, ~as.numeric(.))) %>% 
+  mutate(across(`British Indian Ocean Territory`:`Sub-Saharan Africa`, ~replace_na(.,0))) %>% 
+  # Fix names of key terms and reorder for visualization
+  mutate(keyword = str_to_sentence(str_replace(keyword,"_", " "))) %>%
+  group_by(source) %>%
+  arrange(factor(keyword, levels = c("Survivor", "Survivorship", "Complete remission", "Remission", "Ned", "Curative intent", "Cure")), .by_group=TRUE) %>%
+  select(-keyterm)
+
+writexl::write_xlsx(overall_data_regions, paste0(folder_path, "/", "prostate_region_count.xlsx"))
+```
+
+```{r}
+sessionInfo()
+```
