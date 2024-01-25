@@ -1,11 +1,11 @@
 ---
 title: "Contextual term counts"
-author: "Andrew"
+author: "Andrew Liew"
 format: html
 editor: visual
 ---
 
-This Quarto R document is used to generate document counts and contextual word counts for each keyword and data source
+This R Quarto document is used to generate document counts and contextual word counts for each keyword and data source
 
 ## Import libraries
 

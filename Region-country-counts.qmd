@@ -1,11 +1,11 @@
 ---
 title: "Country and region counts"
-author: "Andrew"
+author: "Andrew Liew"
 format: html
 editor: visual
 ---
 
-This Quarto R document is used to generate country and region counts for each keyword from Quid Monitor social media data.
+This R Quarto document is used to generate country and region counts for each keyword from Quid Monitor social media data.
 
 ## Import libraries
 
@@ -41,7 +41,7 @@ for (i in list.files(paste0(folder_path), pattern = "_social_geo.xlsx")){
   
   data <- readxl::read_xlsx(paste0(folder_path,"/",i)) %>%
     clean_names() %>%
-    # Remmpve extra rows that aren't used for analysis
+    # Remove extra rows that aren't used for analysis
     filter(!is.na(posts)) %>%
     # Remove the total column
     filter(geolocation != "Total") %>%
